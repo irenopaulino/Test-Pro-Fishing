@@ -1,0 +1,51 @@
+name: Publish ALFA web
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: alfa-pages
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: irenopaulino/GAME-STUDIO-AI
+          ref: alfa/consolidacao-2026-11-23
+          token: ${{ secrets.ALFA_SOURCE_TOKEN }}
+          persist-credentials: false
+          path: source
+      - name: Install Godot and export templates
+        run: |
+          curl -fL -o /tmp/godot.zip https://github.com/godotengine/godot/releases/download/4.4.1-stable/Godot_v4.4.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          curl -fL -o /tmp/templates.tpz https://github.com/godotengine/godot/releases/download/4.4.1-stable/Godot_v4.4.1-stable_export_templates.tpz
+          unzip -q /tmp/templates.tpz -d /tmp/templates
+          mkdir -p ~/.local/share/godot/export_templates
+          mv /tmp/templates/templates ~/.local/share/godot/export_templates/4.4.1.stable
+      - name: Export Web
+        working-directory: source/games/pro-fisher-genesis
+        run: |
+          mkdir -p build/web
+          /tmp/godot/Godot_v4.4.1-stable_linux.x86_64 --headless --editor --import --quit
+          /tmp/godot/Godot_v4.4.1-stable_linux.x86_64 --headless --export-release Web build/web/index.html
+          test -s build/web/index.html
+          test -s build/web/index.wasm
+          test -s build/web/index.pck
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: source/games/pro-fisher-genesis/build/web
+  deploy:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: deployment
