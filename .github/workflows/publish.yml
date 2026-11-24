@@ -1,11 +1,10 @@
 name: Publish ALFA web
 on:
   workflow_dispatch:
+  # Batch development: only an explicit release request or manual dispatch publishes.
   push:
     branches: [main]
-    paths: ['.github/workflows/publish.yml']
-  schedule:
-    - cron: '*/5 * * * *'
+    paths: ['publish-request.txt']
 permissions:
   contents: read
 concurrency:
