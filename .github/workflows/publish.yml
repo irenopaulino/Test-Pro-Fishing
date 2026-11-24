@@ -1,6 +1,11 @@
 name: Publish ALFA web
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/publish.yml']
+  schedule:
+    - cron: '*/5 * * * *'
 permissions:
   contents: read
 concurrency:
@@ -9,6 +14,8 @@ concurrency:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.version.outputs.changed }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -17,7 +24,23 @@ jobs:
           token: ${{ secrets.ALFA_SOURCE_TOKEN }}
           persist-credentials: false
           path: source
+      - name: Check whether the source version changed
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha=$(git -C source rev-parse HEAD)
+          published=$(curl -fsSL --max-time 20 -H 'Cache-Control: no-cache' "https://irenopaulino.github.io/Test-Pro-Fishing/source-version.txt?check=${GITHUB_RUN_ID}" || true)
+          echo "source_sha=$sha" >> "$GITHUB_OUTPUT"
+          if [[ "$sha" == "$published" && "$GITHUB_EVENT_NAME" != "workflow_dispatch" ]]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Already published: $sha"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Publishing source: $sha"
+          fi
       - name: Install Godot and export templates
+        if: steps.version.outputs.changed == 'true'
         run: |
           curl -fL -o /tmp/godot.zip https://github.com/godotengine/godot/releases/download/4.4.1-stable/Godot_v4.4.1-stable_linux.x86_64.zip
           unzip -q /tmp/godot.zip -d /tmp/godot
@@ -26,6 +49,7 @@ jobs:
           mkdir -p ~/.local/share/godot/export_templates
           mv /tmp/templates/templates ~/.local/share/godot/export_templates/4.4.1.stable
       - name: Export Web
+        if: steps.version.outputs.changed == 'true'
         working-directory: source/games/pro-fisher-genesis
         run: |
           mkdir -p build/web
@@ -34,11 +58,14 @@ jobs:
           test -s build/web/index.html
           test -s build/web/index.wasm
           test -s build/web/index.pck
+          git rev-parse HEAD > build/web/source-version.txt
       - uses: actions/upload-pages-artifact@v3
+        if: steps.version.outputs.changed == 'true'
         with:
           path: source/games/pro-fisher-genesis/build/web
   deploy:
     needs: publish
+    if: needs.publish.outputs.changed == 'true'
     runs-on: ubuntu-latest
     permissions:
       pages: write
