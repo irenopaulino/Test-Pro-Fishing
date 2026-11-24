@@ -74,6 +74,7 @@ jobs:
         if: steps.version.outputs.changed == 'true'
         with:
           path: source/games/pro-fisher-genesis/build/web
+          retention-days: 1
   deploy:
     needs: publish
     if: needs.publish.outputs.changed == 'true'
@@ -87,3 +88,22 @@ jobs:
     steps:
       - uses: actions/deploy-pages@v4
         id: deployment
+  cleanup-old-builds:
+    needs: deploy
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Remove only obsolete Pages build artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/artifacts?name=github-pages&per_page=100" \
+            --jq ".artifacts[] | select(.name == \"github-pages\" and .workflow_run != null and .workflow_run.id != $GITHUB_RUN_ID) | .id" > /tmp/old-pages-artifacts
+          while IFS= read -r id; do
+            [[ "$id" =~ ^[0-9]+$ ]] || continue
+            gh api --method DELETE "repos/$GITHUB_REPOSITORY/actions/artifacts/$id"
+            echo "Removed obsolete Pages artifact: $id"
+          done < /tmp/old-pages-artifacts
