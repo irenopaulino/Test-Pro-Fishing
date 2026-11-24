@@ -57,7 +57,7 @@ jobs:
           godot=/tmp/godot/Godot_v4.4.1-stable_linux.x86_64
           "$godot" --headless --editor --import --quit 2>&1 | tee /tmp/publish-import.log
           if grep -E 'SCRIPT ERROR:|Parse Error:|ERROR: Failed loading' /tmp/publish-import.log; then exit 1; fi
-          for test in deck_rest_smoke fishing_line_smoke alfa_genesis_line_smoke; do
+          for test in deck_rest_smoke fishing_line_smoke alfa_genesis_line_smoke line_view_smoke; do
             if [[ -f "tests/$test.gd" ]]; then
               "$godot" --headless --script "res://tests/$test.gd" 2>&1 | tee "/tmp/$test.log"
               if grep -E 'SCRIPT ERROR:|FAIL: |Parse Error:' "/tmp/$test.log"; then exit 1; fi
